@@ -1,0 +1,17 @@
+{
+  "extends": "stylelint-config-recommended",
+  "plugins": ["stylelint-no-unsupported-browser-features"],
+  "rules": {
+    "at-rule-no-unknown": [true, {
+      "ignoreAtRules": ["tailwind"]
+    }],
+    "plugin/no-unsupported-browser-features": true,
+    "selector-max-attribute": 1,
+    "selector-max-class": 1,
+    "selector-max-compound-selectors": 3,
+    "selector-max-id": 0,
+    "selector-max-pseudo-class": 1,
+    "selector-nested-pattern": "^&(:| )",
+    "selector-no-qualifying-type": true
+  }
+}

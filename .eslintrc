@@ -1,0 +1,12 @@
+{
+    "root": true,
+    "extends": [
+      "airbnb-base",
+      "plugin:react/recommended"
+    ],
+    "rules": {},
+    "reportUnusedDisableDirectives": true,
+    "settings": {
+      "react": { "version": "detect" }
+    }
+  }
