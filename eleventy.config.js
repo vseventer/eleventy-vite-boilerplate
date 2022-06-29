@@ -11,15 +11,15 @@ const react = require('@slinkity/renderer-react');
 module.exports = (eleventyConfig) => {
   // Add image shortcode (https://www.11ty.dev/docs/plugins/image/#asynchronous-shortcode).
   // Should be updated once https://github.com/slinkity/slinkity/pull/206/ lands.
-  eleventyConfig.addAsyncShortcode('image', async (src, alt, sizes) => {
+  eleventyConfig.addAsyncShortcode('image', async (src, { alt, sizes = '100vw', outputDir = 'img' } = {}) => {
     const metadata = await Image(src, {
       formats: [null],
       filenameFormat(id, _, width, format) {
         const name = path.basename(src, path.extname(src));
         return `${name}-${width}w.${format}`;
       },
-      outputDir: 'dist/img',
-      urlPath: '/img',
+      outputDir: path.join('dist', outputDir),
+      urlPath: path.join('/', outputDir),
       widths: [null],
     });
 

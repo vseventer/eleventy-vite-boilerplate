@@ -1,3 +1,10 @@
+// Standard lib.
+import {
+  dirname,
+  join as joinPath,
+  relative as relativePath,
+} from 'path';
+
 // Package modules.
 import eslint from 'vite-plugin-eslint';
 import imagemin from 'vite-plugin-imagemin';
@@ -7,6 +14,19 @@ const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 
 // Exports.
 export default {
+  build: {
+    rollupOptions: {
+      output: {
+        // https://github.com/vitejs/vite/discussions/3278
+        // https://rollupjs.org/guide/en/#outputassetfilenames
+        assetFileNames: ({ name }) => {
+          const path = relativePath(joinPath(__dirname, '.eleventy-temp-build'), name);
+          const dir = dirname(path) === '..' ? 'assets' : dirname(path);
+          return joinPath(dir, '[name].[hash][extname]');
+        },
+      },
+    },
+  },
   plugins: [
     eslint({ failOnError: IS_PRODUCTION }),
     imagemin({
