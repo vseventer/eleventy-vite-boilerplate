@@ -7,11 +7,14 @@
     "lint:css": "stylelint styles/",
     "lint:js": "eslint '*.js' src/ --ext js,jsx",
     "lint": "npm run lint:css && npm run lint:js",
-    "dev": "npm run build -- --serve --incremental",
+    "11ty": "eleventy --config eleventy.config.js",
+    "dev": "npm run 11ty -- --serve --incremental",
     "start": "npm run dev",
-    "build": "eleventy --config eleventy.config.js"
+    "build": "npm run 11ty"
   },
   "dependencies": {
+    "@11ty/eleventy-img": "^2.0.1",
+    "@11ty/eleventy-navigation": "^0.3.3",
     "@slinkity/renderer-react": "^1.0.0",
     "postcss": "^8.4.14",
     "postcss-import": "^14.1.0",
@@ -22,7 +25,8 @@
     "slinkity": "^0.8.3",
     "stylelint": "^14.9.1",
     "tailwindcss": "^3.1.4",
-    "vite-plugin-eslint": "^1.6.1"
+    "vite-plugin-eslint": "^1.6.1",
+    "vite-plugin-imagemin": "^0.6.1"
   },
   "devDependencies": {
     "@11ty/eleventy": "^1.0.0",

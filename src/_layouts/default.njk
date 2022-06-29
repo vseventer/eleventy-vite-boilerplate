@@ -9,7 +9,7 @@
     <meta name="HandheldFriendly" content="true" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-    <meta name="description" content="To eleventy and beyond!"/>
+    <meta name="description" content="{{- description -}}"/>
 
     {% block styles %}
       <link rel="stylesheet" href="/@root/styles/style.css" />
@@ -23,7 +23,7 @@
       {# Any custom heading code here. #}
     {% endblock %}
   </head>
-  <body>
+  <body class="overflow-y-scroll">
     {{ content | safe }}
 
     {% block scripts %}

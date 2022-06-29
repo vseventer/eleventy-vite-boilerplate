@@ -1,9 +1,39 @@
+// Standard lib.
+const path = require('path');
+
 // Package modules.
+const Image = require('@11ty/eleventy-img');
+const eleventyNavigationPlugin = require('@11ty/eleventy-navigation');
 const slinkity = require('slinkity');
 const react = require('@slinkity/renderer-react');
 
 // Exports.
 module.exports = (eleventyConfig) => {
+  // Add image shortcode (https://www.11ty.dev/docs/plugins/image/#asynchronous-shortcode).
+  // Should be updated once https://github.com/slinkity/slinkity/pull/206/ lands.
+  eleventyConfig.addAsyncShortcode('image', async (src, alt, sizes) => {
+    const metadata = await Image(src, {
+      formats: [null],
+      filenameFormat(id, _, width, format) {
+        const name = path.basename(src, path.extname(src));
+        return `${name}-${width}w.${format}`;
+      },
+      outputDir: 'dist/img',
+      urlPath: '/img',
+      widths: [null],
+    });
+
+    return Image.generateHTML(metadata, {
+      alt,
+      decoding: 'async',
+      loading: 'lazy',
+      sizes,
+    });
+  });
+
+  // Add navigation plugin (https://www.11ty.dev/docs/plugins/navigation/).
+  eleventyConfig.addPlugin(eleventyNavigationPlugin);
+
   // Add slinkity as middleware (https://slinkity.dev/).
   eleventyConfig.addPlugin(slinkity.plugin, slinkity.defineConfig({
     renderers: [react],
