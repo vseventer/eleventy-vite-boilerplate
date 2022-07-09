@@ -2,6 +2,7 @@
 const path = require('path');
 
 // Package modules.
+const { EleventyRenderPlugin } = require('@11ty/eleventy');
 const Image = require('@11ty/eleventy-img');
 const eleventyNavigationPlugin = require('@11ty/eleventy-navigation');
 const slinkity = require('slinkity');
@@ -9,9 +10,22 @@ const react = require('@slinkity/renderer-react');
 
 // Exports.
 module.exports = (eleventyConfig) => {
+  // Provide a JS slice to templates (https://github.com/mozilla/nunjucks/issues/1026).
+  eleventyConfig.addFilter('arraySlice', (value, ...args) => value.slice(...args));
+
+  // Provide date formatter
+  // (https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Intl/DateTimeFormat).
+  const dateFormatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'UTC',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  });
+  eleventyConfig.addFilter('dateFormat', dateFormatter.format);
+
   // Add image shortcode (https://www.11ty.dev/docs/plugins/image/#asynchronous-shortcode).
   // Should be updated once https://github.com/slinkity/slinkity/pull/206/ lands.
-  eleventyConfig.addAsyncShortcode('image', async (src, { alt, sizes = '100vw', outputDir = 'img' } = {}) => {
+  eleventyConfig.addAsyncShortcode('image', async (src, { alt, outputDir = 'img', sizes = '100vw', ...attrs }) => {
     const metadata = await Image(src, {
       formats: [null],
       filenameFormat(id, _, width, format) {
@@ -28,11 +42,15 @@ module.exports = (eleventyConfig) => {
       decoding: 'async',
       loading: 'lazy',
       sizes,
+      ...attrs,
     });
   });
 
   // Add navigation plugin (https://www.11ty.dev/docs/plugins/navigation/).
   eleventyConfig.addPlugin(eleventyNavigationPlugin);
+
+  // Add render plugin (https://www.11ty.dev/docs/plugins/render/).
+  eleventyConfig.addPlugin(EleventyRenderPlugin);
 
   // Add slinkity as middleware (https://slinkity.dev/).
   eleventyConfig.addPlugin(slinkity.plugin, slinkity.defineConfig({
@@ -47,6 +65,9 @@ module.exports = (eleventyConfig) => {
    * To ensure this directory is discoverable by Vite, we copy it to our 11ty build output like so:
    */
   eleventyConfig.addPassthroughCopy('public');
+
+  // Enable excerpts (https://www.11ty.dev/docs/data-frontmatter-customize/).
+  eleventyConfig.setFrontMatterParsingOptions({ excerpt: true });
 
   return {
     dir: {

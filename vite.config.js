@@ -10,6 +10,7 @@ import eslint from 'vite-plugin-eslint';
 import imagemin from 'vite-plugin-imagemin';
 
 // Constants.
+const INTERMEDIATE_DIR = joinPath(__dirname, '.eleventy-temp-build');
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 
 // Exports.
@@ -20,9 +21,10 @@ export default {
         // https://github.com/vitejs/vite/discussions/3278
         // https://rollupjs.org/guide/en/#outputassetfilenames
         assetFileNames: ({ name }) => {
-          const path = relativePath(joinPath(__dirname, '.eleventy-temp-build'), name);
-          const dir = dirname(path) === '..' ? 'assets' : dirname(path);
-          return joinPath(dir, '[name].[hash][extname]');
+          // Preserve directory tree for intermediate files, fallback to assets/.
+          const path = relativePath(INTERMEDIATE_DIR, dirname(name));
+          const outputDir = path.startsWith('..') ? 'assets' : path;
+          return joinPath(outputDir, '[name].[hash][extname]');
         },
       },
     },
