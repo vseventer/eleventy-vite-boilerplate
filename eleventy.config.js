@@ -1,4 +1,9 @@
+// Allow function expressions as arrow functions do not have access to `this`.
+// https://www.11ty.dev/docs/languages/javascript/#warning-about-arrow-functions
+/* eslint-disable prefer-arrow-callback */
+
 // Standard lib.
+const fs = require('fs/promises');
 const path = require('path');
 
 // Package modules.
@@ -8,10 +13,42 @@ const eleventyNavigationPlugin = require('@11ty/eleventy-navigation');
 const slinkity = require('slinkity');
 const react = require('@slinkity/renderer-react');
 
+// Helpers.
+function filenameFormat(id, src, width, format) {
+  const name = path.basename(src, path.extname(src));
+  return `${name}-${width}w.${format}`;
+}
+
+function generatePlaceholder(dataUri, children, { classes = '' }) {
+  return `
+    <figure
+      class="${classes} image"
+      style="background-image: url(${dataUri})"
+    >
+      ${children}
+    </figure>
+  `;
+}
+
+function resolve(resource, from) {
+  // Join absolute resources with __dirname to avoid unsafe file access.
+  const to = path.isAbsolute(resource) ? __dirname : path.dirname(from);
+  return path.join(to, resource);
+}
+
 // Exports.
 module.exports = (eleventyConfig) => {
+  // Add menu collection for navigation.
+  eleventyConfig.addCollection('menu', function menuCollection(collectionApi) {
+    return collectionApi
+      .getAll()
+      .filter(({ data }) => data.menu);
+  });
+
   // Provide a JS slice to templates (https://github.com/mozilla/nunjucks/issues/1026).
-  eleventyConfig.addFilter('arraySlice', (value, ...args) => value.slice(...args));
+  eleventyConfig.addFilter('arraySlice', function arraySliceFilter(value, ...args) {
+    return value.slice(...args);
+  });
 
   // Provide date formatter
   // (https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Intl/DateTimeFormat).
@@ -25,26 +62,51 @@ module.exports = (eleventyConfig) => {
 
   // Add image shortcode (https://www.11ty.dev/docs/plugins/image/#asynchronous-shortcode).
   // Should be updated once https://github.com/slinkity/slinkity/pull/206/ lands.
-  eleventyConfig.addAsyncShortcode('image', async (src, { alt, outputDir = 'img', sizes = '100vw', ...attrs }) => {
-    const metadata = await Image(src, {
-      formats: [null],
-      filenameFormat(id, _, width, format) {
-        const name = path.basename(src, path.extname(src));
-        return `${name}-${width}w.${format}`;
-      },
-      outputDir: path.join('dist', outputDir),
-      urlPath: path.join('/', outputDir),
-      widths: [null],
-    });
+  eleventyConfig.addAsyncShortcode(
+    'image',
+    async function imageShortcode(input, {
+      class: classes,
+      context = this.page,
+      sizes = '100vw',
+      ...attrs
+    }) {
+      const src = resolve(input, context.inputPath);
+      const options = {
+        filenameFormat,
+        outputDir: path.join('dist', context.url),
+        urlPath: path.join('/', context.url),
+      };
 
-    return Image.generateHTML(metadata, {
-      alt,
-      decoding: 'async',
-      loading: 'lazy',
-      sizes,
-      ...attrs,
-    });
-  });
+      const [metadata, dataUri] = await Promise.all([
+        Image(src, {
+          ...options,
+          formats: [null],
+          widths: [null],
+        }),
+        Image(src, {
+          ...options,
+          formats: ['jpeg'],
+          sharpJpegOptions: { quality: 25 },
+          widths: [24],
+        }).then(({ jpeg: [placeholder] }) => fs.readFile(placeholder.outputPath, 'base64'))
+          .then((data) => `data:image/jpeg;base64,${data}`),
+      ]);
+
+      return generatePlaceholder(
+        dataUri,
+        Image.generateHTML(
+          metadata,
+          {
+            decoding: 'async',
+            loading: 'lazy',
+            sizes,
+            ...attrs,
+          },
+        ),
+        { classes },
+      );
+    },
+  );
 
   // Add navigation plugin (https://www.11ty.dev/docs/plugins/navigation/).
   eleventyConfig.addPlugin(eleventyNavigationPlugin);
