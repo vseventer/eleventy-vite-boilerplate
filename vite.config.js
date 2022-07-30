@@ -7,6 +7,7 @@ import {
 
 // Package modules.
 import eslint from 'vite-plugin-eslint';
+import htmlMinimize from '@sergeymakinen/vite-plugin-html-minimize';
 import imagemin from 'vite-plugin-imagemin';
 
 // Constants.
@@ -31,11 +32,36 @@ export default {
   },
   plugins: [
     eslint({ failOnError: IS_PRODUCTION }),
+    htmlMinimize({
+      // https://github.com/terser/html-minifier-terser#options-quick-reference
+      minifierOptions: {
+        collapseWhitespace: true,
+        html5: true,
+        keepClosingSlash: true,
+        minifyCSS: true,
+        minifyJS: true,
+        preserveLineBreaks: true,
+        removeAttributeQuotes: true,
+        removeComments: true,
+        removeRedundantAttributes: true,
+        removeScriptTypeAttributes: true,
+        removeStyleLinkTypeAttributes: true,
+        useShortDoctype: true,
+      },
+    }),
+
     imagemin({
+      // Global options.
+      disable: !IS_PRODUCTION,
+
+      // AVIF minification uses the same pipeline as eleventy-img so no need to apply here.
+      filter: /\.(gif|jpe?g|png|svg)$/i,
+
+      // Plugin options.
       gifsicle: { optimizationLevel: 3 }, // https://github.com/imagemin/imagemin-gifsicle
       jpegTran: false,
       mozjpeg: { quality: 75 }, // https://github.com/imagemin/imagemin-mozjpeg
-      optipng: { optimizationLevel: 7 }, // https://github.com/imagemin/imagemin-optipng
+      optipng: false,
       pngquant: { // https://github.com/imagemin/imagemin-pngquant
         quality: [0.7, 0.8],
         speed: 1,
@@ -49,8 +75,15 @@ export default {
           },
         ],
       },
-      webp: { quality: 75 }, // https://github.com/imagemin/imagemin-webp
+      webp: false, // See plugin below.
+    }),
+
+    // Add separate pipeline for WebP as plugin is too eager and will convert JPEG to WebP also.
+    imagemin({
+      // Global options.
       disable: !IS_PRODUCTION,
+      filter: /\.webp$/i,
+      webp: true, // https://github.com/imagemin/imagemin-webp
     }),
   ],
 };

@@ -3,13 +3,16 @@
 /* eslint-disable prefer-arrow-callback */
 
 // Standard lib.
-const fs = require('fs/promises');
+const { readFileSync } = require('fs');
 const path = require('path');
 
 // Package modules.
 const { EleventyRenderPlugin } = require('@11ty/eleventy');
+const { AssetCache } = require('@11ty/eleventy-fetch');
 const Image = require('@11ty/eleventy-img');
 const eleventyNavigationPlugin = require('@11ty/eleventy-navigation');
+const lodashGet = require('lodash.get');
+const sharp = require('sharp');
 const slinkity = require('slinkity');
 const react = require('@slinkity/renderer-react');
 
@@ -19,15 +22,49 @@ function filenameFormat(id, src, width, format) {
   return `${name}-${width}w.${format}`;
 }
 
-function generatePlaceholder(dataUri, children, { classes = '' }) {
+function generatePlaceholder(uri, children, { caption, classes = '' }) {
+  // Return HTML without leading whitespace.
+  // (https://www.11ty.dev/docs/languages/markdown/#there-are-extra-and-in-my-output)
   return `
-    <figure
-      class="${classes} image"
-      style="background-image: url(${dataUri})"
-    >
-      ${children}
-    </figure>
-  `;
+<figure
+  class="bg-center bg-cover bg-no-repeat ${classes}"
+  style="background-image: url(${uri})"
+>
+  ${children}
+  ${caption ? `<figcaption>${caption}</figcaption>` : ''}
+</figure>
+`;
+}
+
+/**
+ * The image shortcode is synchronous and relies on running stats synchronously. However, for large
+ * images this takes a long time, so cache the stat results for faster retrieval.
+ *
+ * https://www.11ty.dev/docs/plugins/fetch/#manually-store-your-own-data-in-the-cache
+ */
+function getCachedImageStats(src, options) {
+  const asset = new AssetCache(`images.${JSON.stringify([src, options])}`);
+  if (asset.isCacheValid('1w')) {
+    // HACK: Read file synchronously since asset.getCachedValue() returns a promise.
+    const contents = readFileSync(asset.getCachedContentsPath('json'));
+    return JSON.parse(contents);
+  }
+
+  // Add two-pass support for HEIC (https://github.com/image-size/image-size/issues/125).
+  const extname = path.extname(src).toLowerCase();
+  if (extname === '.heic') {
+    const result = Image.statsByDimensionsSync(src, 4032, 3024, options);
+    console.warn('%s: Estimated HEIF image dimensions - re-run for accurate results', src);
+    sharp(src).metadata().then(({ width, height }) => {
+      const cachedResult = Image.statsByDimensionsSync(src, width, height, options);
+      asset.save(cachedResult, 'json');
+    });
+    return result;
+  }
+
+  const result = Image.statsSync(src, options);
+  asset.save(result, 'json'); // Don't await since this function needs to be synchronous.
+  return result;
 }
 
 function resolve(resource, from) {
@@ -38,16 +75,14 @@ function resolve(resource, from) {
 
 // Exports.
 module.exports = (eleventyConfig) => {
-  // Add menu collection for navigation.
-  eleventyConfig.addCollection('menu', function menuCollection(collectionApi) {
-    return collectionApi
-      .getAll()
-      .filter(({ data }) => data.menu);
-  });
-
   // Provide a JS slice to templates (https://github.com/mozilla/nunjucks/issues/1026).
   eleventyConfig.addFilter('arraySlice', function arraySliceFilter(value, ...args) {
     return value.slice(...args);
+  });
+
+  // Simple finder function to find a collection item by (nested) key.
+  eleventyConfig.addFilter('getCollectionItemBy', function getCollectionItemByFilter(collection, key, value) {
+    return collection.find((entry) => lodashGet(entry, key) === value);
   });
 
   // Provide date formatter
@@ -60,50 +95,60 @@ module.exports = (eleventyConfig) => {
   });
   eleventyConfig.addFilter('dateFormat', dateFormatter.format);
 
-  // Add image shortcode (https://www.11ty.dev/docs/plugins/image/#asynchronous-shortcode).
-  // Should be updated once https://github.com/slinkity/slinkity/pull/206/ lands.
-  eleventyConfig.addAsyncShortcode(
+  /**
+   * Add synchronous image shortcode to allow for usage inside macros.
+   * https://www.11ty.dev/docs/plugins/image/#synchronous-shortcode
+   *
+   * - Should be updated once https://github.com/slinkity/slinkity/pull/206/ lands.
+   */
+  eleventyConfig.addShortcode(
     'image',
-    async function imageShortcode(input, {
+    function imageShortcode(input, {
+      caption,
       class: classes,
-      context = this.page,
+      context,
       sizes = '100vw',
+      __keywords, // Exclude prop added by 11ty.
       ...attrs
     }) {
-      const src = resolve(input, context.inputPath);
+      const src = resolve(input, context?.inputPath ?? this.page.inputPath);
+
+      // Ignore pagination by saving images relative to the first page URL to avoid duplicates.
+      const url = context?.url ?? this.ctx.pagination?.firstPageHref ?? this.page.url;
       const options = {
         filenameFormat,
-        outputDir: path.join('dist', context.url),
-        urlPath: path.join('/', context.url),
+        formats: ['avif', 'jpeg'],
+        outputDir: path.join('dist', url),
+        urlPath: path.join('/', url),
+        widths: [640, 1280, 1920],
+      };
+      const placeholderOptions = {
+        ...options,
+        formats: ['jpeg'],
+        widths: [24],
       };
 
-      const [metadata, dataUri] = await Promise.all([
-        Image(src, {
-          ...options,
-          formats: [null],
-          widths: [null],
-        }),
-        Image(src, {
-          ...options,
-          formats: ['jpeg'],
-          sharpJpegOptions: { quality: 25 },
-          widths: [24],
-        }).then(({ jpeg: [placeholder] }) => fs.readFile(placeholder.outputPath, 'base64'))
-          .then((data) => `data:image/jpeg;base64,${data}`),
-      ]);
+      // Generate images asynchronously in the background.
+      Image(src, options);
+      Image(src, placeholderOptions);
+
+      // Generate HTML.
+      const metadata = getCachedImageStats(src, options);
+      const { jpeg: [placeholder] } = getCachedImageStats(src, placeholderOptions);
 
       return generatePlaceholder(
-        dataUri,
+        placeholder.url, // Placeholder will be inlined by build process due to its small size.
         Image.generateHTML(
           metadata,
           {
+            class: 'w-full h-full object-cover',
             decoding: 'async',
             loading: 'lazy',
             sizes,
             ...attrs,
           },
         ),
-        { classes },
+        { caption, classes },
       );
     },
   );

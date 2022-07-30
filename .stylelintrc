@@ -3,9 +3,12 @@
   "plugins": ["stylelint-no-unsupported-browser-features"],
   "rules": {
     "at-rule-no-unknown": [true, {
-      "ignoreAtRules": ["tailwind"]
+      "ignoreAtRules": ["layer", "tailwind"]
     }],
-    "plugin/no-unsupported-browser-features": true,
+    "function-no-unknown": [true, {
+      "ignoreFunctions": ["theme"]
+    }],
+    "plugin/no-unsupported-browser-features": [true, { "severity": "warning" }],
     "selector-max-attribute": 1,
     "selector-max-class": 1,
     "selector-max-compound-selectors": 3,
