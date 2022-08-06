@@ -23,14 +23,16 @@ function filenameFormat(id, src, width, format) {
 }
 
 function generatePlaceholder(uri, children, { caption, classes = '' }) {
+  const innerClasses = 'block bg-center bg-cover bg-no-repeat';
+
   // Return HTML without leading whitespace.
   // (https://www.11ty.dev/docs/languages/markdown/#there-are-extra-and-in-my-output)
   return `
-<figure
-  class="bg-center bg-cover bg-no-repeat ${classes}"
-  style="background-image: url(${uri})"
->
-  ${children}
+<figure class="${classes}">
+  ${children.replace(
+    '<picture',
+    `<picture class="${innerClasses}" style="background-image: url(${uri})"`,
+  )}
   ${caption ? `<figcaption>${caption}</figcaption>` : ''}
 </figure>
 `;
@@ -80,9 +82,16 @@ module.exports = (eleventyConfig) => {
     return value.slice(...args);
   });
 
-  // Simple finder function to find a collection item by (nested) key.
-  eleventyConfig.addFilter('getCollectionItemBy', function getCollectionItemByFilter(collection, key, value) {
+  // Finder filters to find items by (nested) key / value.
+  eleventyConfig.addFilter('find', function findFilter(collection, key, value) {
     return collection.find((entry) => lodashGet(entry, key) === value);
+  });
+  eleventyConfig.addFilter('findAll', function findAllFilter(list, collection, key, valueKey) {
+    const find = eleventyConfig.getFilter('find');
+    return list.map((entry) => {
+      const value = valueKey ? entry[valueKey] : entry;
+      return find(collection, key, value);
+    });
   });
 
   // Provide date formatter
@@ -95,15 +104,18 @@ module.exports = (eleventyConfig) => {
   });
   eleventyConfig.addFilter('dateFormat', dateFormatter.format);
 
+  // Set default layout.
+  eleventyConfig.addGlobalData('layout', 'default');
+
   /**
-   * Add synchronous image shortcode to allow for usage inside macros.
+   * Add synchronous responsive image shortcode to allow for usage inside macros.
    * https://www.11ty.dev/docs/plugins/image/#synchronous-shortcode
    *
    * - Should be updated once https://github.com/slinkity/slinkity/pull/206/ lands.
    */
   eleventyConfig.addShortcode(
-    'image',
-    function imageShortcode(input, {
+    'respImage',
+    function responsiveImageShortcode(input, {
       caption,
       class: classes,
       context,
@@ -147,6 +159,7 @@ module.exports = (eleventyConfig) => {
             sizes,
             ...attrs,
           },
+          { whitespaceMode: 'inline' }, // Strip whitespace from the output.
         ),
         { caption, classes },
       );

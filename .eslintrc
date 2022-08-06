@@ -10,6 +10,7 @@
       "react": { "version": "detect" }
     },
     "rules": {
-      "react/prop-types": 0
+      "react/prop-types": 0,
+      "max-len": [2, 100, { "ignoreUrls": true }]
     }
   }
