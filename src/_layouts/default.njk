@@ -8,8 +8,9 @@
 
     <meta name="HandheldFriendly" content="true" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-
-    <meta name="description" content="{{- description -}}"/>
+    {% if page.excerpt %}
+      <meta name="description" content="{{- page.excerpt -}}"/>
+    {% endif %}
 
     {% block styles %}
       <link rel="stylesheet" href="/@root/styles/style.css" />

@@ -11,6 +11,6 @@
     },
     "rules": {
       "react/prop-types": 0,
-      "max-len": [2, 100, { "ignoreUrls": true }]
+      "max-len": ["error", 100, { "ignoreUrls": true }]
     }
   }

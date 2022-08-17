@@ -23,6 +23,7 @@ function filenameFormat(id, src, width, format) {
 }
 
 function generatePlaceholder(uri, children, { caption, classes = '' }) {
+  // Render picture as block element to support placeholder background.
   const innerClasses = 'block bg-center bg-cover bg-no-repeat';
 
   // Return HTML without leading whitespace.
@@ -77,10 +78,25 @@ function resolve(resource, from) {
 
 // Exports.
 module.exports = (eleventyConfig) => {
+  // Returns a fully-qualified URL.
+  eleventyConfig.addFilter('absUrl', function absUrl(relativeUrl) {
+    return new URL(relativeUrl, this.ctx.config.url).toString();
+  });
+
   // Provide a JS slice to templates (https://github.com/mozilla/nunjucks/issues/1026).
   eleventyConfig.addFilter('arraySlice', function arraySliceFilter(value, ...args) {
     return value.slice(...args);
   });
+
+  // Provide date formatter
+  // (https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Intl/DateTimeFormat).
+  const dateFormatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'UTC',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  });
+  eleventyConfig.addFilter('dateFormat', dateFormatter.format);
 
   // Finder filters to find items by (nested) key / value.
   eleventyConfig.addFilter('find', function findFilter(collection, key, value) {
@@ -94,19 +110,6 @@ module.exports = (eleventyConfig) => {
     });
   });
 
-  // Provide date formatter
-  // (https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Intl/DateTimeFormat).
-  const dateFormatter = new Intl.DateTimeFormat('en-US', {
-    timeZone: 'UTC',
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-  });
-  eleventyConfig.addFilter('dateFormat', dateFormatter.format);
-
-  // Set default layout.
-  eleventyConfig.addGlobalData('layout', 'default');
-
   /**
    * Add synchronous responsive image shortcode to allow for usage inside macros.
    * https://www.11ty.dev/docs/plugins/image/#synchronous-shortcode
@@ -119,10 +122,11 @@ module.exports = (eleventyConfig) => {
       caption,
       class: classes,
       context,
+      lazy = true, // Only load image when it gets close to appearing in the viewport.
       sizes = '100vw',
       __keywords, // Exclude prop added by 11ty.
       ...attrs
-    }) {
+    } = {}) {
       const src = resolve(input, context?.inputPath ?? this.page.inputPath);
 
       // Ignore pagination by saving images relative to the first page URL to avoid duplicates.
@@ -153,9 +157,10 @@ module.exports = (eleventyConfig) => {
         Image.generateHTML(
           metadata,
           {
+            alt: '',
             class: 'w-full h-full object-cover',
             decoding: 'async',
-            loading: 'lazy',
+            ...lazy && { loading: 'lazy' },
             sizes,
             ...attrs,
           },
@@ -165,6 +170,9 @@ module.exports = (eleventyConfig) => {
       );
     },
   );
+
+  // Set default layout.
+  eleventyConfig.addGlobalData('layout', 'default');
 
   // Add navigation plugin (https://www.11ty.dev/docs/plugins/navigation/).
   eleventyConfig.addPlugin(eleventyNavigationPlugin);
